@@ -69,6 +69,9 @@ archives:
       owner: root
       mode: 0755
       mtime: "{{ .CommitTimestamp }}"
+    filter:
+      exclude:
+        - goos: darwin
   - id: universal
     ids:
       - hayase-cli-universal
