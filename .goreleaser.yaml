@@ -133,7 +133,3 @@ signs:
     artifacts: checksum
     output: true
 
-sboms:
-  - artifacts: archive
-    documents:
-      - "{{ .ProjectName }}_{{ .Version }}_sbom.spdx.json"
