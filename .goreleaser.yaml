@@ -89,14 +89,6 @@ brews:
       bin.install "hayase-cli"
     test: |
       system "#{bin}/hayase-cli", "--version"
-    repository:
-      owner: hayasedb
-      name: homebrew-hayase-cli
-      branch: main
-      token: "{{ .Env.GITHUB_TOKEN }}"
-    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://github.com/hayasedb/hayase-cli"
-    description: "A modern CLI tool for anime streaming with integrated video player support"
 
 
 scoops:
