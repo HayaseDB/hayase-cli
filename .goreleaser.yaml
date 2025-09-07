@@ -14,12 +14,39 @@ builds:
     
     goos:
       - linux
-      - darwin
       - windows
     
     goarch:
       - amd64
       - arm64
+      
+  - id: hayase-cli-darwin
+    binary: hayase-cli
+    main: ./main.go
+    
+    env:
+      - CGO_ENABLED=0
+    
+    goos:
+      - darwin
+    
+    goarch:
+      - amd64
+      - arm64
+
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    
+    flags:
+      - -trimpath
+    tags:
+      - purego
+    
+    mod_timestamp: "{{ .CommitTimestamp }}"
     
     ldflags:
       - -s -w
@@ -34,8 +61,17 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 
+universal_binaries:
+  - id: hayase-cli-universal
+    ids: 
+      - hayase-cli-darwin
+    replace: true
+    name_template: "{{ .ProjectName }}"
+
 archives:
   - id: default
+    builds:
+      - hayase-cli
     formats:
       - tar.gz
       - tar.xz
@@ -63,6 +99,28 @@ archives:
       owner: root
       mode: 0755
       mtime: "{{ .CommitTimestamp }}"
+  - id: darwin
+    builds:
+      - hayase-cli-universal
+    formats:
+      - tar.gz
+      - tar.xz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}
+    wrap_in_directory: true
+    strip_binary_directory: true
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+    builds_info:
+      group: root
+      owner: root
+      mode: 0755
+      mtime: "{{ .CommitTimestamp }}"
 
 checksum:
   name_template: 'checksums.txt'
@@ -74,7 +132,7 @@ snapshot:
 brews:
   - name: hayase-cli
     ids:
-      - default
+      - darwin
     goarm: "7"
     repository:
       owner: hayasedb
