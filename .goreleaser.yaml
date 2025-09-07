@@ -16,8 +16,11 @@ builds:
       - linux
       - darwin
       - windows
+      - freebsd
+      - openbsd
     
     goarch:
+      - "386"
       - amd64
       - arm64
     
@@ -43,6 +46,14 @@ universal_binaries:
 
 archives:
   - id: default
+    formats:
+      - tar.gz
+      - tar.xz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+          - tar.gz
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -51,22 +62,102 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+    wrap_in_directory: true
+    strip_binary_directory: true
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+    builds_info:
+      group: root
+      owner: root
+      mode: 0755
+      mtime: "{{ .CommitTimestamp }}"
 
 checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
+  extra_files:
+    - glob: 'checksums.sha512.txt'
+      name_template: 'checksums.sha512.txt'
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 homebrew_casks:
   - name: hayase-cli
+    ids:
+      - default
     binary: hayase-cli
     repository:
       owner: hayasedb
-      name: hayase-cli
-      branch: homebrew-tap
+      name: homebrew-hayase-cli
+      branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
-    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: "https://github.com/hayasedb/hayase-cli"
     description: "A modern CLI tool for anime streaming with integrated video player support"
+
+snapcrafts:
+  - name: hayase-cli
+    summary: A modern CLI tool for anime streaming
+    description: |
+      A modern CLI tool for anime streaming with integrated video player support.
+      Features include interactive UI, multiple streaming sources, and built-in video playback.
+    grade: stable
+    confinement: strict
+    publish: true
+    license: MIT
+    base: core22
+    channel_templates:
+      - "stable"
+      - "candidate"
+      - "beta"
+      - "edge"
+    apps:
+      hayase-cli:
+        command: hayase-cli
+        plugs: ["home", "network", "network-bind", "audio-playback"]
+
+scoops:
+  - name: hayase-cli
+    repository:
+      owner: hayasedb
+      name: scoop-hayase-cli
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/hayasedb/hayase-cli"
+    description: "A modern CLI tool for anime streaming with integrated video player support"
+    license: MIT
+
+aurs:
+  - name: hayase-cli
+    homepage: "https://github.com/hayasedb/hayase-cli"
+    description: "A modern CLI tool for anime streaming with integrated video player support"
+    maintainers:
+      - "hayasedb <info@hayasedb.com>"
+    license: MIT
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/hayase-cli.git"
+    depends:
+      - glibc
+
+signs:
+  - cmd: cosign
+    env:
+    - COSIGN_EXPERIMENTAL=1
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--output-certificate=${certificate}'
+      - '--output-signature=${signature}'
+      - '${artifact}'
+      - --yes
+    artifacts: checksum
+    output: true
+
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_sbom.spdx.json"
