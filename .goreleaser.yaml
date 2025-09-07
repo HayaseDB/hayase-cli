@@ -33,17 +33,9 @@ builds:
 
     mod_timestamp: "{{ .CommitTimestamp }}"
 
-universal_binaries:
-  - id: hayase-cli-universal
-    ids: 
-      - hayase-cli
-    replace: true
-    name_template: "{{ .ProjectName }}"
 
 archives:
   - id: default
-    builds:
-      - hayase-cli
     formats:
       - tar.gz
       - tar.xz
@@ -59,29 +51,7 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arch }}{{ end }}
-    wrap_in_directory: true
-    strip_binary_directory: true
-    files:
-      - LICENSE*
-      - README*
-      - CHANGELOG*
-    builds_info:
-      group: root
-      owner: root
-      mode: 0755
-      mtime: "{{ .CommitTimestamp }}"
-  - id: universal
-    ids:
-      - hayase-cli-universal
-    formats:
-      - tar.gz
-      - tar.xz
-    name_template: >-
-      {{ .ProjectName }}_
-      {{- .Version }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
     wrap_in_directory: true
     strip_binary_directory: true
     files:
@@ -101,11 +71,24 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
-homebrew_casks:
+brews:
   - name: hayase-cli
     ids:
-      - universal
-    binary: hayase-cli
+      - default
+    goarm: "7"
+    repository:
+      owner: hayasedb
+      name: homebrew-hayase-cli
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/hayasedb/hayase-cli"
+    description: "A modern CLI tool for anime streaming with integrated video player support"
+    license: "MIT"
+    install: |
+      bin.install "hayase-cli"
+    test: |
+      system "#{bin}/hayase-cli", "--version"
     repository:
       owner: hayasedb
       name: homebrew-hayase-cli
