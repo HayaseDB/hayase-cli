@@ -94,26 +94,6 @@ homebrew_casks:
     homepage: "https://github.com/hayasedb/hayase-cli"
     description: "A modern CLI tool for anime streaming with integrated video player support"
 
-snapcrafts:
-  - name: hayase-cli
-    summary: A modern CLI tool for anime streaming
-    description: |
-      A modern CLI tool for anime streaming with integrated video player support.
-      Features include interactive UI, multiple streaming sources, and built-in video playback.
-    grade: stable
-    confinement: strict
-    publish: true
-    license: MIT
-    base: core22
-    channel_templates:
-      - "stable"
-      - "candidate"
-      - "beta"
-      - "edge"
-    apps:
-      hayase-cli:
-        command: hayase-cli
-        plugs: ["home", "network", "network-bind", "audio-playback"]
 
 scoops:
   - name: hayase-cli
