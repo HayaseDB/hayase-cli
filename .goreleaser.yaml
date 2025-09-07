@@ -73,9 +73,6 @@ archives:
 checksum:
   name_template: 'checksums.txt'
   algorithm: sha256
-  extra_files:
-    - glob: 'checksums.sha512.txt'
-      name_template: 'checksums.sha512.txt'
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
