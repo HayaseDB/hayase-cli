@@ -1,0 +1,72 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: hayase-cli
+    binary: hayase-cli
+    main: ./main.go
+    
+    env:
+      - CGO_ENABLED=0
+    
+    goos:
+      - linux
+      - darwin
+      - windows
+    
+    goarch:
+      - amd64
+      - arm64
+    
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    
+    flags:
+      - -trimpath
+      - -tags=nocgo
+    
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+universal_binaries:
+  - id: hayase-cli-universal
+    ids: 
+      - hayase-cli
+    replace: true
+    name_template: "{{ .ProjectName }}"
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+homebrew_casks:
+  - name: hayase-cli
+    binary: hayase-cli
+    repository:
+      owner: hayasedb
+      name: hayase-cli
+      branch: homebrew-tap
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/hayasedb/hayase-cli"
+    description: "A modern CLI tool for anime streaming with integrated video player support"
