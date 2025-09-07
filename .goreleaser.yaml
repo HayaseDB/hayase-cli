@@ -42,6 +42,8 @@ universal_binaries:
 
 archives:
   - id: default
+    builds:
+      - hayase-cli
     formats:
       - tar.gz
       - tar.xz
@@ -57,7 +59,7 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-      {{- if .Arm }}v{{ .Arm }}{{ end }}
+      {{- if .Arm }}v{{ .Arch }}{{ end }}
     wrap_in_directory: true
     strip_binary_directory: true
     files:
@@ -69,9 +71,6 @@ archives:
       owner: root
       mode: 0755
       mtime: "{{ .CommitTimestamp }}"
-    filter:
-      exclude:
-        - goos: darwin
   - id: universal
     ids:
       - hayase-cli-universal
