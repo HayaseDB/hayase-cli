@@ -69,6 +69,28 @@ archives:
       owner: root
       mode: 0755
       mtime: "{{ .CommitTimestamp }}"
+  - id: universal
+    ids:
+      - hayase-cli-universal
+    formats:
+      - tar.gz
+      - tar.xz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}
+    wrap_in_directory: true
+    strip_binary_directory: true
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+    builds_info:
+      group: root
+      owner: root
+      mode: 0755
+      mtime: "{{ .CommitTimestamp }}"
 
 checksum:
   name_template: 'checksums.txt'
@@ -80,7 +102,7 @@ snapshot:
 homebrew_casks:
   - name: hayase-cli
     ids:
-      - default
+      - universal
     binary: hayase-cli
     repository:
       owner: hayasedb
