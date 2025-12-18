@@ -49,10 +49,8 @@ func (m Model) homeView() string {
 	if m.searchActive {
 		b.WriteString(m.renderSearchResults())
 	} else {
-		if len(m.continueList) > 0 {
-			b.WriteString(m.renderRow("Continue Watching", ContinueSection))
-			b.WriteString("\n")
-		}
+		b.WriteString(m.renderContinueWatching())
+		b.WriteString("\n")
 
 		if len(m.trendingList) > 0 {
 			b.WriteString(m.renderRow("Trending Now", TrendingSection))
@@ -141,6 +139,42 @@ func (m Model) renderSearchResults() string {
 	}
 
 	b.WriteString("\n")
+	return b.String()
+}
+
+func (m Model) renderContinueWatching() string {
+	isActiveRow := m.activeSection == ContinueSection
+	titleStyle := RowTitleStyle
+	if isActiveRow {
+		titleStyle = titleStyle.Foreground(Primary)
+	}
+
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Continue Watching"))
+	b.WriteString("\n")
+
+	if len(m.continueList) == 0 {
+		b.WriteString(TextMutedStyle.Render("No watch history yet"))
+		return b.String()
+	}
+
+	cursor := m.sectionCursors[ContinueSection]
+	p := m.sectionPaginators[ContinueSection]
+	listLen := len(m.continueList)
+	start, end := p.GetSliceBounds(listLen)
+
+	var cards []string
+	for i := start; i < end; i++ {
+		isSelected := isActiveRow && i == cursor
+		card := m.renderCard(ContinueSection, i, isSelected)
+		cards = append(cards, card)
+	}
+
+	if len(cards) > 0 {
+		row := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+		b.WriteString(row)
+	}
+
 	return b.String()
 }
 

@@ -3,8 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/log"
+	"github.com/hayasedb/hayase/internal/cache"
+	"github.com/hayasedb/hayase/internal/history"
+	"github.com/hayasedb/hayase/internal/paths"
 	"github.com/hayasedb/hayase/internal/scraper"
 	"github.com/hayasedb/hayase/internal/tui"
 	"github.com/spf13/cobra"
@@ -20,7 +24,10 @@ func SetVersionInfo(version, commit, date string) {
 }
 
 type CLI struct {
-	verbose bool
+	verbose    bool
+	noCache    bool
+	clearCache bool
+	reset      bool
 }
 
 func ExecuteContext(ctx context.Context) error {
@@ -53,11 +60,31 @@ func (c *CLI) buildCommand() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().BoolVarP(&c.verbose, "verbose", "v", false, "Enable verbose output")
+	cmd.Flags().BoolVarP(&c.noCache, "no-cache", "n", false, "Bypass cache and fetch fresh data")
+	cmd.Flags().BoolVar(&c.clearCache, "clear-cache", false, "Clear all cached data and exit")
+	cmd.Flags().BoolVar(&c.reset, "reset", false, "Delete all user data and exit")
 
 	return cmd
 }
 
 func (c *CLI) run() error {
-	s := scraper.New()
-	return tui.Run(s)
+	if c.clearCache {
+		if err := cache.Clear(); err != nil {
+			return fmt.Errorf("clear cache: %w", err)
+		}
+		fmt.Println("Cache cleared")
+		return nil
+	}
+
+	if c.reset {
+		if err := os.RemoveAll(paths.DataDir()); err != nil {
+			return fmt.Errorf("reset data: %w", err)
+		}
+		fmt.Println("User data reset")
+		return nil
+	}
+
+	s := cache.NewScraper(scraper.New(), c.noCache)
+	h := history.New()
+	return tui.Run(s, h)
 }

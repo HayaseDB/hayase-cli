@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/hayasedb/hayase/internal/history"
 	"github.com/hayasedb/hayase/internal/models"
 	"github.com/hayasedb/hayase/internal/scraper"
 )
@@ -67,7 +68,8 @@ type Model struct {
 
 	titleScrollOffset int
 
-	scraper        *scraper.Scraper
+	scraper        scraper.Interface
+	history        *history.Manager
 	loading        bool
 	loadingStatus  string
 	loadError      error
@@ -124,7 +126,7 @@ func newPaginator() paginator.Model {
 	return p
 }
 
-func New(s *scraper.Scraper) Model {
+func New(s scraper.Interface, h *history.Manager) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search anime..."
 	ti.CharLimit = 50
@@ -153,6 +155,7 @@ func New(s *scraper.Scraper) Model {
 		searchInput:       ti,
 		visibleEpisodes:   10,
 		scraper:           s,
+		history:           h,
 		loading:           true,
 		loadingStatus:     "Loading anime data...",
 		spinner:           sp,

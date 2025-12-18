@@ -42,6 +42,49 @@ func (m *Model) resetDetailsState() {
 	m.episodeOffset = 0
 }
 
+func (m *Model) buildContinueList() {
+	if m.history == nil {
+		return
+	}
+
+	entries := m.history.List()
+	m.continueList = make([]WatchProgress, 0, len(entries))
+
+	for _, e := range entries {
+		anime := m.findAnimeByID(e.AnimeID)
+		if anime == nil {
+			anime = &Anime{
+				ID:   e.AnimeID,
+				Name: e.AnimeName,
+			}
+		}
+		m.continueList = append(m.continueList, WatchProgress{
+			Anime:       anime,
+			LastSeason:  e.LastSeason,
+			LastEpisode: e.LastEpisode,
+			ProgressPct: e.ProgressPct,
+		})
+	}
+
+	p := m.sectionPaginators[ContinueSection]
+	p.SetTotalPages(len(m.continueList))
+	m.sectionPaginators[ContinueSection] = p
+}
+
+func (m *Model) findAnimeByID(id string) *Anime {
+	for i := range m.trendingList {
+		if m.trendingList[i].ID == id {
+			return &m.trendingList[i]
+		}
+	}
+	for i := range m.newReleaseList {
+		if m.newReleaseList[i].ID == id {
+			return &m.newReleaseList[i]
+		}
+	}
+	return nil
+}
+
 func updateAnimeInSlice(list []Anime, slug string, updated *Anime) {
 	for i := range list {
 		if list[i].ID == slug {
@@ -81,6 +124,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.trendingList = msg.trending
 		m.newReleaseList = msg.newRelease
+
+		m.buildContinueList()
 
 		p := m.sectionPaginators[TrendingSection]
 		p.SetTotalPages(len(m.trendingList))
@@ -377,6 +422,22 @@ func (m Model) updateDetails(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case key.Matches(msg, m.keys.Enter):
+		if m.history != nil && episodeCount > 0 {
+			ep := episodes[m.episodeCursor]
+			totalEps := episodeCount
+			progressPct := 0
+			if totalEps > 0 {
+				progressPct = ((ep.Number) * 100) / totalEps
+			}
+			m.history.Update(
+				m.selectedAnime.ID,
+				m.selectedAnime.Name,
+				ep.Season,
+				ep.Number,
+				progressPct,
+			)
+			m.buildContinueList()
+		}
 		return m, nil
 	}
 

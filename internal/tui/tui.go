@@ -3,12 +3,13 @@ package tui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/hayasedb/hayase/internal/history"
 	"github.com/hayasedb/hayase/internal/scraper"
 )
 
-func Run(s *scraper.Scraper) error {
+func Run(s scraper.Interface, h *history.Manager) error {
 	p := tea.NewProgram(
-		New(s),
+		New(s, h),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
