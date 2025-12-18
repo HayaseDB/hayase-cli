@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
+	"github.com/hayasedb/hayase/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -57,6 +58,6 @@ func (c *CLI) buildCommand() *cobra.Command {
 	return cmd
 }
 
-func (c *CLI) run(cmd *cobra.Command, args []string) error {
-	return nil
+func (c *CLI) run(_ *cobra.Command, _ []string) error {
+	return tui.Run()
 }

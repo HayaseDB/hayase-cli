@@ -14,9 +14,8 @@ tasks:
 
   dev:
     desc: Build and run hayase
-    deps: [build]
     run:
-      - cmd: ./hayase
+      - cmd: go run main.go
 
   deps:
     desc: Download and tidy dependencies
