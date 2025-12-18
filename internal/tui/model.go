@@ -1,14 +1,18 @@
 package tui
 
 import (
+	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/paginator"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/hayasedb/hayase/internal/models"
+	"github.com/hayasedb/hayase/internal/scraper"
 )
 
 type View int
@@ -43,8 +47,8 @@ type Model struct {
 	searchInput   textinput.Model
 	searchActive  bool
 	searchResults []Anime
+	searchLoading bool
 
-	anime          []Anime
 	continueList   []WatchProgress
 	trendingList   []Anime
 	newReleaseList []Anime
@@ -62,6 +66,35 @@ type Model struct {
 	quitting bool
 
 	titleScrollOffset int
+
+	scraper        *scraper.Scraper
+	loading        bool
+	loadingStatus  string
+	loadError      error
+	loadingDetails bool
+	spinner        spinner.Model
+}
+
+type dataLoadedMsg struct {
+	trending   []models.Anime
+	newRelease []models.Anime
+	err        error
+}
+
+type searchResultsMsg struct {
+	results []models.Anime
+	err     error
+}
+
+type animeDetailsMsg struct {
+	anime *models.Anime
+	err   error
+}
+
+type animeDetailUpdateMsg struct {
+	slug  string
+	anime *models.Anime
+	err   error
 }
 
 type titleTickMsg time.Time
@@ -72,22 +105,26 @@ func titleTick() tea.Cmd {
 	})
 }
 
-func newPaginator(totalItems int) paginator.Model {
+type searchDebounceMsg struct {
+	query string
+}
+
+func searchDebounce(query string) tea.Cmd {
+	return tea.Tick(time.Millisecond*200, func(_ time.Time) tea.Msg {
+		return searchDebounceMsg{query: query}
+	})
+}
+
+func newPaginator() paginator.Model {
 	p := paginator.New()
 	p.Type = paginator.Dots
 	p.PerPage = visibleCards
-	p.SetTotalPages(totalItems)
 	p.ActiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "235", Dark: "252"}).Render("•")
 	p.InactiveDot = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"}).Render("•")
 	return p
 }
 
-func New() Model {
-	var anime []Anime
-	var continueList []WatchProgress
-	var trendingList []Anime
-	var newReleaseList []Anime
-
+func New(s *scraper.Scraper) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Search anime..."
 	ti.CharLimit = 50
@@ -97,10 +134,14 @@ func New() Model {
 	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(TextDim)
 
 	paginators := make(map[Section]paginator.Model)
-	paginators[ContinueSection] = newPaginator(len(continueList))
-	paginators[TrendingSection] = newPaginator(len(trendingList))
-	paginators[NewReleasesSection] = newPaginator(len(newReleaseList))
-	paginators[SearchResultsSection] = newPaginator(len(anime))
+	paginators[ContinueSection] = newPaginator()
+	paginators[TrendingSection] = newPaginator()
+	paginators[NewReleasesSection] = newPaginator()
+	paginators[SearchResultsSection] = newPaginator()
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(Primary)
 
 	return Model{
 		view:              BrowseView,
@@ -109,20 +150,96 @@ func New() Model {
 		sectionCursors:    make(map[Section]int),
 		sectionPaginators: paginators,
 		visibleCards:      visibleCards,
+		searchInput:       ti,
+		visibleEpisodes:   10,
+		scraper:           s,
+		loading:           true,
+		loadingStatus:     "Loading anime data...",
+		spinner:           sp,
+	}
+}
 
-		searchInput: ti,
+func (m Model) loadDataCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.scraper == nil {
+			return dataLoadedMsg{err: fmt.Errorf("scraper not initialized")}
+		}
 
-		anime:          anime,
-		continueList:   continueList,
-		trendingList:   trendingList,
-		newReleaseList: newReleaseList,
+		ctx := context.Background()
+		data, err := m.scraper.GetHomepageData(ctx)
+		if err != nil {
+			return dataLoadedMsg{err: err}
+		}
 
-		visibleEpisodes: 10,
+		return dataLoadedMsg{
+			trending:   data.Popular,
+			newRelease: data.NewReleases,
+		}
+	}
+}
+
+func (m Model) fetchAnimeDetailsCmd(slug string) tea.Cmd {
+	return func() tea.Msg {
+		if m.scraper == nil {
+			return animeDetailsMsg{err: fmt.Errorf("scraper not initialized")}
+		}
+
+		ctx := context.Background()
+		anime, err := m.scraper.GetAnime(ctx, slug)
+		return animeDetailsMsg{anime: anime, err: err}
+	}
+}
+
+func (m Model) fetchDetailCmd(slug string) tea.Cmd {
+	return func() tea.Msg {
+		if m.scraper == nil {
+			return animeDetailUpdateMsg{slug: slug, err: fmt.Errorf("scraper not initialized")}
+		}
+
+		ctx := context.Background()
+		anime, err := m.scraper.GetAnime(ctx, slug)
+		return animeDetailUpdateMsg{slug: slug, anime: anime, err: err}
+	}
+}
+
+func (m Model) fetchAllDetailsCmd() tea.Cmd {
+	seen := make(map[string]bool)
+	var cmds []tea.Cmd
+
+	for _, anime := range m.trendingList {
+		if anime.ID != "" && !seen[anime.ID] {
+			seen[anime.ID] = true
+			cmds = append(cmds, m.fetchDetailCmd(anime.ID))
+		}
+	}
+
+	for _, anime := range m.newReleaseList {
+		if anime.ID != "" && !seen[anime.ID] {
+			seen[anime.ID] = true
+			cmds = append(cmds, m.fetchDetailCmd(anime.ID))
+		}
+	}
+
+	if len(cmds) == 0 {
+		return nil
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m Model) searchCmd(query string) tea.Cmd {
+	return func() tea.Msg {
+		if m.scraper == nil {
+			return searchResultsMsg{err: fmt.Errorf("scraper not initialized")}
+		}
+		ctx := context.Background()
+		results, err := m.scraper.Search(ctx, query)
+		return searchResultsMsg{results: results, err: err}
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return titleTick()
+	return tea.Batch(titleTick(), m.loadDataCmd(), m.spinner.Tick)
 }
 
 func (m Model) getSectionLength(section Section) int {
@@ -172,6 +289,18 @@ type CardData struct {
 	Info     string
 }
 
+func animeToCardData(anime Anime) CardData {
+	subtitle := "Loading..."
+	if anime.Year > 0 {
+		subtitle = fmt.Sprintf("%d", anime.Year)
+	}
+	info := ""
+	if anime.Seasons > 0 {
+		info = CardInfoStyle.Render(fmt.Sprintf("%d Seasons", anime.Seasons))
+	}
+	return CardData{Name: anime.Name, Subtitle: subtitle, Info: info}
+}
+
 func (m Model) getCardData(section Section, index int) CardData {
 	switch section {
 	case ContinueSection:
@@ -185,51 +314,18 @@ func (m Model) getCardData(section Section, index int) CardData {
 		}
 	case TrendingSection:
 		if index < len(m.trendingList) {
-			anime := m.trendingList[index]
-			return CardData{
-				Name:     anime.Name,
-				Subtitle: fmt.Sprintf("%d", anime.Year),
-				Info:     CardInfoStyle.Render(fmt.Sprintf("%d Seasons", anime.Seasons)),
-			}
+			return animeToCardData(m.trendingList[index])
 		}
 	case NewReleasesSection:
 		if index < len(m.newReleaseList) {
-			anime := m.newReleaseList[index]
-			info := ""
-			if len(anime.Genres) > 0 {
-				info = CardInfoStyle.Render(anime.Genres[0])
-			}
-			return CardData{
-				Name:     anime.Name,
-				Subtitle: fmt.Sprintf("%d", anime.Year),
-				Info:     info,
-			}
+			return animeToCardData(m.newReleaseList[index])
 		}
 	case SearchResultsSection:
 		if index < len(m.searchResults) {
-			anime := m.searchResults[index]
-			return CardData{
-				Name:     anime.Name,
-				Subtitle: fmt.Sprintf("%d", anime.Year),
-				Info:     CardInfoStyle.Render(fmt.Sprintf("%d Seasons", anime.Seasons)),
-			}
+			return animeToCardData(m.searchResults[index])
 		}
 	}
 	return CardData{}
-}
-
-func filterAnime(anime []Anime, query string) []Anime {
-	if query == "" {
-		return anime
-	}
-	query = strings.ToLower(query)
-	var filtered []Anime
-	for _, a := range anime {
-		if strings.Contains(strings.ToLower(a.Name), query) {
-			filtered = append(filtered, a)
-		}
-	}
-	return filtered
 }
 
 func (m Model) calculateVisibleCards() int {

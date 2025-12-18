@@ -50,7 +50,7 @@ func DefaultKeyMap() KeyMap {
 	}
 }
 
-func (k KeyMap) BrowseHelp() string {
+func BrowseHelp() string {
 	return HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" sections") +
 		Dot() +
 		HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" scroll") +
@@ -62,7 +62,7 @@ func (k KeyMap) BrowseHelp() string {
 		HelpKeyStyle.Render("q") + HelpDescStyle.Render(" quit")
 }
 
-func (k KeyMap) SearchHelp() string {
+func SearchHelp() string {
 	return HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" navigate") +
 		Dot() +
 		HelpKeyStyle.Render("enter") + HelpDescStyle.Render(" select") +
@@ -70,7 +70,7 @@ func (k KeyMap) SearchHelp() string {
 		HelpKeyStyle.Render("esc") + HelpDescStyle.Render(" cancel")
 }
 
-func (k KeyMap) DetailHelp() string {
+func DetailHelp() string {
 	return HelpKeyStyle.Render("↑/↓") + HelpDescStyle.Render(" episodes") +
 		Dot() +
 		HelpKeyStyle.Render("←/→") + HelpDescStyle.Render(" seasons") +

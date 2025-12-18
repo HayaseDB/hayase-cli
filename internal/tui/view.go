@@ -30,6 +30,22 @@ func (m Model) homeView() string {
 	b.WriteString(m.renderSearchBar())
 	b.WriteString("\n")
 
+	if m.loading || m.loadingDetails {
+		b.WriteString("\n")
+		b.WriteString(m.spinner.View())
+		b.WriteString(" ")
+		b.WriteString(LoadingStyle.Render(m.loadingStatus))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	if m.loadError != nil {
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(Warning).Render("Error: "))
+		b.WriteString(LoadingStyle.Render(m.loadError.Error()))
+		b.WriteString("\n")
+	}
+
 	if m.searchActive {
 		b.WriteString(m.renderSearchResults())
 	} else {
@@ -47,12 +63,18 @@ func (m Model) homeView() string {
 			b.WriteString(m.renderRow("New Releases", NewReleasesSection))
 			b.WriteString("\n")
 		}
+
+		if len(m.trendingList) == 0 && len(m.newReleaseList) == 0 && m.loadError == nil {
+			b.WriteString("\n")
+			b.WriteString(TextMutedStyle.Render("No anime found. Try searching!"))
+			b.WriteString("\n")
+		}
 	}
 
 	if m.searchActive {
-		b.WriteString(HelpStyle.Render(m.keys.SearchHelp()))
+		b.WriteString(HelpStyle.Render(SearchHelp()))
 	} else {
-		b.WriteString(HelpStyle.Render(m.keys.BrowseHelp()))
+		b.WriteString(HelpStyle.Render(BrowseHelp()))
 	}
 
 	return b.String()
@@ -74,13 +96,25 @@ func (m Model) renderSearchBar() string {
 func (m Model) renderSearchResults() string {
 	var b strings.Builder
 
-	resultCount := len(m.searchResults)
-	title := fmt.Sprintf("Results (%d matches)", resultCount)
-	b.WriteString(RowTitleStyle.Foreground(Primary).Render(title))
+	b.WriteString(RowTitleStyle.Foreground(Primary).Render("Search Results"))
 	b.WriteString("\n")
 
+	if m.searchLoading {
+		b.WriteString(m.spinner.View())
+		b.WriteString(" ")
+		b.WriteString(TextMutedStyle.Render("Searching..."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	resultCount := len(m.searchResults)
 	if resultCount == 0 {
-		b.WriteString(TextMutedStyle.Render("No anime found matching your search."))
+		query := m.searchInput.Value()
+		if query == "" {
+			b.WriteString(TextMutedStyle.Render("Type to search..."))
+		} else {
+			b.WriteString(TextMutedStyle.Render("No anime found matching your search."))
+		}
 		b.WriteString("\n")
 		return b.String()
 	}
@@ -99,6 +133,11 @@ func (m Model) renderSearchResults() string {
 	if len(cards) > 0 {
 		row := lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 		b.WriteString(row)
+	}
+
+	if p.TotalPages > 1 {
+		b.WriteString("\n")
+		b.WriteString(TextMutedStyle.Render(fmt.Sprintf("Page %d/%d (%d results)", p.Page+1, p.TotalPages, resultCount)))
 	}
 
 	b.WriteString("\n")
@@ -196,10 +235,12 @@ func (m Model) detailsView() string {
 		b.WriteString("\n\n")
 	}
 
-	b.WriteString(DetailDescStyle.Render(anime.Desc))
-	b.WriteString("\n\n")
+	if anime.Desc != "" {
+		b.WriteString(DetailDescStyle.Render(anime.Desc))
+		b.WriteString("\n\n")
+	}
 
-	if anime.Seasons > 1 {
+	if anime.Seasons >= 1 {
 		b.WriteString(m.renderSeasonTabs())
 		b.WriteString("\n\n")
 	}
@@ -243,13 +284,13 @@ func (m Model) detailsView() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render(m.keys.DetailHelp()))
+	b.WriteString(HelpStyle.Render(DetailHelp()))
 
 	return b.String()
 }
 
 func (m Model) renderSeasonTabs() string {
-	if m.selectedAnime == nil || m.selectedAnime.Seasons <= 1 {
+	if m.selectedAnime == nil || m.selectedAnime.Seasons < 1 {
 		return ""
 	}
 
@@ -268,7 +309,7 @@ func (m Model) renderSeasonTabs() string {
 	}
 
 	for i := start; i < end; i++ {
-		label := fmt.Sprintf("S%d", i+1)
+		label := fmt.Sprintf("Season %d", i+1)
 		if i == m.activeSeason {
 			parts = append(parts, ActiveTabStyle.Render(label))
 		} else {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
+	"github.com/hayasedb/hayase/internal/scraper"
 	"github.com/hayasedb/hayase/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,6 @@ func SetVersionInfo(version, commit, date string) {
 }
 
 type CLI struct {
-	ctx     context.Context
 	verbose bool
 }
 
@@ -31,8 +31,7 @@ func newCLI() *CLI {
 	return &CLI{}
 }
 
-func (c *CLI) execute(ctx context.Context) error {
-	c.ctx = ctx
+func (c *CLI) execute(_ context.Context) error {
 	return c.buildCommand().Execute()
 }
 
@@ -43,13 +42,13 @@ func (c *CLI) buildCommand() *cobra.Command {
 		Version:       versionString,
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			if c.verbose {
 				log.SetLevel(log.DebugLevel)
 			}
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.run(cmd, args)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return c.run()
 		},
 	}
 
@@ -58,6 +57,7 @@ func (c *CLI) buildCommand() *cobra.Command {
 	return cmd
 }
 
-func (c *CLI) run(_ *cobra.Command, _ []string) error {
-	return tui.Run()
+func (c *CLI) run() error {
+	s := scraper.New()
+	return tui.Run(s)
 }

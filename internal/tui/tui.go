@@ -2,11 +2,13 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/hayasedb/hayase/internal/scraper"
 )
 
-func Run() error {
+func Run(s *scraper.Scraper) error {
 	p := tea.NewProgram(
-		New(),
+		New(s),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)

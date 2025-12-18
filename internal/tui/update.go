@@ -2,6 +2,7 @@ package tui
 
 import (
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -34,12 +35,27 @@ func (m *Model) resetSearchPaginator() {
 	m.sectionPaginators[SearchResultsSection] = p
 }
 
+func (m *Model) resetDetailsState() {
+	m.activeSeason = 0
+	m.seasonTabOffset = 0
+	m.episodeCursor = 0
+	m.episodeOffset = 0
+}
+
+func updateAnimeInSlice(list []Anime, slug string, updated *Anime) {
+	for i := range list {
+		if list[i].ID == slug {
+			list[i] = *updated
+			return
+		}
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
 		m.visibleCards = m.calculateVisibleCards()
 
 		for section, p := range m.sectionPaginators {
@@ -54,6 +70,72 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+
+	case dataLoadedMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.loadError = msg.err
+			m.loadingStatus = "Failed to load data: " + msg.err.Error()
+			return m, nil
+		}
+
+		m.trendingList = msg.trending
+		m.newReleaseList = msg.newRelease
+
+		p := m.sectionPaginators[TrendingSection]
+		p.SetTotalPages(len(m.trendingList))
+		m.sectionPaginators[TrendingSection] = p
+
+		p = m.sectionPaginators[NewReleasesSection]
+		p.SetTotalPages(len(m.newReleaseList))
+		m.sectionPaginators[NewReleasesSection] = p
+
+		return m, m.fetchAllDetailsCmd()
+
+	case searchResultsMsg:
+		m.searchLoading = false
+		if msg.err != nil {
+			return m, nil
+		}
+		m.searchResults = msg.results
+		m.sectionCursors[SearchResultsSection] = 0
+		m.resetSearchPaginator()
+		return m, nil
+
+	case searchDebounceMsg:
+		if !m.searchActive || m.searchInput.Value() != msg.query {
+			return m, nil
+		}
+		m.searchLoading = true
+		return m, m.searchCmd(msg.query)
+
+	case animeDetailsMsg:
+		m.loadingDetails = false
+		m.loadingStatus = ""
+		if msg.err != nil {
+			m.loadError = msg.err
+			return m, nil
+		}
+		m.loadError = nil
+		m.selectedAnime = msg.anime
+		m.resetDetailsState()
+		m.view = DetailsView
+		return m, nil
+
+	case animeDetailUpdateMsg:
+		if msg.err != nil || msg.anime == nil {
+			return m, nil
+		}
+
+		updateAnimeInSlice(m.trendingList, msg.slug, msg.anime)
+		updateAnimeInSlice(m.newReleaseList, msg.slug, msg.anime)
+
+		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case titleTickMsg:
 		if m.view == BrowseView && m.activeSection != SearchSection {
@@ -127,11 +209,13 @@ func (m Model) updateBrowse(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Enter):
 		anime := m.getSelectedAnime()
 		if anime != nil {
+			if len(anime.Episodes) == 0 && anime.ID != "" {
+				m.loadingDetails = true
+				m.loadingStatus = "Loading " + anime.Name + "..."
+				return m, m.fetchAnimeDetailsCmd(anime.ID)
+			}
 			m.selectedAnime = anime
-			m.activeSeason = 0
-			m.seasonTabOffset = 0
-			m.episodeCursor = 0
-			m.episodeOffset = 0
+			m.resetDetailsState()
 			m.view = DetailsView
 		}
 		return m, nil
@@ -155,11 +239,13 @@ func (m Model) updateSearchSection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		keyStr := msg.String()
 		if len(keyStr) == 1 && keyStr[0] >= 32 && keyStr[0] <= 126 {
 			m.activateSearch()
-			var cmd tea.Cmd
-			m.searchInput, cmd = m.searchInput.Update(msg)
-			m.searchResults = filterAnime(m.anime, m.searchInput.Value())
-			m.resetSearchPaginator()
-			return m, cmd
+			var inputCmd tea.Cmd
+			m.searchInput, inputCmd = m.searchInput.Update(msg)
+			query := m.searchInput.Value()
+			if query != "" {
+				return m, tea.Batch(inputCmd, searchDebounce(query))
+			}
+			return m, inputCmd
 		}
 	}
 
@@ -169,7 +255,7 @@ func (m Model) updateSearchSection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) activateSearch() {
 	m.searchActive = true
 	m.searchInput.Focus()
-	m.searchResults = m.anime
+	m.searchResults = nil
 	m.activeSection = SearchResultsSection
 	m.sectionCursors[SearchResultsSection] = 0
 	m.titleScrollOffset = 0
@@ -183,6 +269,7 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchInput.Blur()
 		m.searchInput.SetValue("")
 		m.searchResults = nil
+		m.searchLoading = false
 		m.activeSection = SearchSection
 		return m, nil
 
@@ -198,11 +285,17 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.searchResults) > 0 {
 			cursor := m.sectionCursors[SearchResultsSection]
 			if cursor < len(m.searchResults) {
+				anime := m.searchResults[cursor]
+				if len(anime.Episodes) == 0 && anime.ID != "" {
+					m.loadingDetails = true
+					m.loadingStatus = "Loading " + anime.Name + "..."
+					m.searchActive = false
+					m.searchInput.Blur()
+					m.searchInput.SetValue("")
+					return m, m.fetchAnimeDetailsCmd(anime.ID)
+				}
 				m.selectedAnime = &m.searchResults[cursor]
-				m.activeSeason = 0
-				m.seasonTabOffset = 0
-				m.episodeCursor = 0
-				m.episodeOffset = 0
+				m.resetDetailsState()
 				m.view = DetailsView
 				m.searchActive = false
 				m.searchInput.Blur()
@@ -212,30 +305,20 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	default:
-		var cmd tea.Cmd
-		m.searchInput, cmd = m.searchInput.Update(msg)
+		var inputCmd tea.Cmd
+		m.searchInput, inputCmd = m.searchInput.Update(msg)
 
 		query := m.searchInput.Value()
 		if query == "" {
 			m.searchActive = false
 			m.searchInput.Blur()
 			m.searchResults = nil
+			m.searchLoading = false
 			m.activeSection = SearchSection
-			return m, cmd
+			return m, inputCmd
 		}
 
-		m.searchResults = filterAnime(m.anime, query)
-
-		p := m.sectionPaginators[SearchResultsSection]
-		p.SetTotalPages(len(m.searchResults))
-
-		if m.sectionCursors[SearchResultsSection] >= len(m.searchResults) {
-			m.sectionCursors[SearchResultsSection] = 0
-			p.Page = 0
-		}
-		m.sectionPaginators[SearchResultsSection] = p
-
-		return m, cmd
+		return m, tea.Batch(inputCmd, searchDebounce(query))
 	}
 }
 

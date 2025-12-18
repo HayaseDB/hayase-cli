@@ -136,6 +136,13 @@ var (
 
 	EpisodeDurationSubtleStyle = lipgloss.NewStyle().
 					Foreground(TextDim)
+
+	LoadingStyle = lipgloss.NewStyle().
+			Foreground(TextMuted).
+			MarginTop(2)
+
+	LoadingSpinnerStyle = lipgloss.NewStyle().
+				Foreground(Primary)
 )
 
 func newCardStyle(borderColor lipgloss.Color) lipgloss.Style {
