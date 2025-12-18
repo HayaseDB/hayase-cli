@@ -1,0 +1,95 @@
+tasks:
+  build:
+    desc: Build the hayase binary
+    run:
+      - log: Building hayase binary...
+      - cmd: go build -o hayase .
+      - log: Build complete
+
+  install:
+    desc: Install hayase to $GOPATH/bin
+    run:
+      - log: Installing hayase to $GOPATH/bin...
+      - cmd: go install .
+
+  dev:
+    desc: Build and run hayase
+    deps: [build]
+    run:
+      - cmd: ./hayase
+
+  deps:
+    desc: Download and tidy dependencies
+    run:
+      - cmd: go mod download
+      - cmd: go mod tidy
+
+  clean:
+    desc: Clean build artifacts
+    run:
+      - cmd: rm -f hayase
+      - cmd: go clean -cache
+
+  test:
+    desc: Run tests with coverage
+    run:
+      - cmd: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+
+  test:race:
+    desc: Run tests with race detector (matches CI)
+    run:
+      - cmd: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  coverage:
+    desc: Generate and open HTML coverage report
+    run:
+      - cmd: go test -coverprofile=coverage.txt ./...
+      - cmd: go tool cover -html=coverage.txt -o coverage.html
+
+  lint:
+    desc: Run golangci-lint (matches CI)
+    run:
+      - cmd: golangci-lint run --config=.golangci.yaml --timeout=5m
+
+  lint:fix:
+    desc: Run golangci-lint and auto-fix issues
+    run:
+      - cmd: golangci-lint run --config=.golangci.yaml --timeout=5m --fix
+
+  format:
+    desc: Format code with gofmt and goimports
+    run:
+      - cmd: gofmt -w .
+      - cmd: goimports -w .
+
+  format:check:
+    desc: Check if code is formatted correctly
+    run:
+      - cmd: gofmt -l .
+
+  check:
+    desc: Run all checks that CI runs (format, lint, test)
+    run:
+      - log: Running CI checks...
+      - task: format:check
+      - task: lint
+      - task: test:race
+      - log: All checks passed
+
+  fix:
+    desc: Auto-fix everything (format + lint:fix)
+    run:
+      - log: Auto-fixing code issues...
+        level: warn
+      - task: format
+      - task: lint:fix
+
+  hooks:install:
+    desc: Install git hooks via lefthook
+    run:
+      - cmd: lefthook install
+
+  hooks:uninstall:
+    desc: Uninstall git hooks
+    run:
+      - cmd: lefthook uninstall

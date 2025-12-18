@@ -1,0 +1,38 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  settings:
+    gosec:
+      excludes:
+        - G304
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - gocritic
+    - gosec
+    - misspell
+    - unconvert
+    - unparam
+    - whitespace
+    - gocyclo
+    - dupl
+    - prealloc
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - copyloopvar
+    - goconst
+    - godot
+    - errorlint
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

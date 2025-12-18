@@ -1,6 +1,3 @@
-# Hayase CLI
+# Hayase
 
-easy anime streaming cli
-
-docs coming soon
-very very very early development
+Anime streaming CLI.

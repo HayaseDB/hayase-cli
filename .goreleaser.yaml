@@ -1,62 +1,125 @@
 version: 2
 
+project_name: hayase
+
+env:
+  - CGO_ENABLED=0
+
 before:
   hooks:
     - go mod tidy
+    - go mod download
 
 builds:
-  - env: [CGO_ENABLED=0]
+  - id: default
+    binary: hayase
+    main: .
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
-      - darwin
       - windows
+      - darwin
     goarch:
       - amd64
       - arm64
+      - arm
+    goarm:
+      - "7"
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
     ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
-      - -X main.builtBy=goreleaser
+      - -s -w -X main.version={{.Version}} -X main.commit={{.FullCommit}} -X main.date={{.Date}}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+universal_binaries:
+  - id: hayase-universal
+    ids:
+      - default
+    replace: false
+    name_template: 'hayase'
 
 archives:
-  - name_template: >-
-      {{ .ProjectName }}_
-      {{- .Version }}_
-      {{- title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else }}{{ .Arch }}{{ end }}
+  - id: default
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        formats: [zip]
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "windows" }}Windows
+      {{- else if eq .Os "darwin" }}macOS
+      {{- else }}{{ title .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "all" }}universal
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
 
 checksum:
   name_template: 'checksums.txt'
+  algorithm: sha256
 
-homebrew_casks:
-  - repository:
-      owner: hayasedb
-      name: homebrew-hayase-cli
-      branch: main
-      token: "{{ .Env.GITHUB_TOKEN }}"
-    homepage: "https://github.com/hayasedb/hayase-cli"
-    description: "A modern CLI tool for anime streaming"
+source:
+  enabled: true
 
-scoops:
-  - repository:
-      owner: hayasedb
-      name: scoop-hayase-cli
-      branch: main
-      token: "{{ .Env.GITHUB_TOKEN }}"
-    homepage: "https://github.com/hayasedb/hayase-cli" 
-    description: "A modern CLI tool for anime streaming"
+signs:
+  - id: checksum-sign
+    cmd: cosign
+    certificate: "${artifact}.pem"
+    artifacts: checksum
+    output: true
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
 
-aurs:
-  - homepage: "https://github.com/hayasedb/hayase-cli"
-    description: "A modern CLI tool for anime streaming"
-    maintainers:
-      - "hayasedb <noreply@github.com>"
-    license: MIT
-    private_key: "{{ .Env.AUR_KEY }}"
-    git_url: "ssh://aur@aur.archlinux.org/hayase-cli.git"
+release:
+  github:
+    owner: hayasedb
+    name: hayase
+  mode: append
+
+changelog:
+  sort: asc
+  use: git
+  abbrev: 7
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?!?:'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix(\(.+\))?!?:'
+      order: 1
+    - title: Documentation
+      regexp: '^docs(\(.+\))?!?:'
+      order: 2
+    - title: Performance
+      regexp: '^perf(\(.+\))?!?:'
+      order: 3
+    - title: Refactoring
+      regexp: '^refactor(\(.+\))?!?:'
+      order: 4
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - 'merge pull request'
+      - 'merge branch'
+
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"

@@ -1,6 +1,7 @@
-# Binaries for programs and plugins
+# Binaries
+hayase
+hayase.exe
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
@@ -10,45 +11,30 @@
 
 # Output of the go coverage tool
 *.out
+coverage.txt
 coverage.html
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
-# Built application binary
-hayase-cli
+# Build artifacts
+dist/
+build/
+*.tar.gz
+*.zip
 
-# IDE and editor files
-.vscode/
+# IDE
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
-
-# OS generated files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Temporary files
-tmp/
-temp/
+# Environment files
+.env
+.env.local
 
-# Log files
-*.log
-
-# Configuration files (optional, depends on your preference)
-# config.yaml
-
-# GoReleaser build artifacts
-dist/
-*.tar.gz
-*.zip
-checksums.txt
+# Lefthook local config
+.lefthook-local.yml

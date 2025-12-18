@@ -1,10 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/hayasedb/hayase-cli/cmd"
+	"github.com/charmbracelet/log"
+	"github.com/hayasedb/hayase/cmd"
 )
 
 var (
@@ -14,13 +18,35 @@ var (
 )
 
 func main() {
-	cmd.SetVersionInfo(version, commit, date)
+	os.Exit(run())
+}
 
-	if err := cmd.Execute(); err != nil {
-		_, err := fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		if err != nil {
-			return
+func run() int {
+	log.SetDefault(log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    false,
+		ReportTimestamp: false,
+		Level:           log.InfoLevel,
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
+	cmd.SetVersionInfo(version, commit, date)
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return 0
 		}
-		os.Exit(1)
+		log.Error(err.Error())
+		return 1
 	}
+
+	return 0
 }
